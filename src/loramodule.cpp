@@ -38,6 +38,32 @@ bool LoRaModule::sendPacket(const uint8_t* data, size_t len) {
     return true;
 }
 
+bool LoRaModule::sendPacketWithAck(const uint8_t* data, size_t len, int retries, unsigned long timeoutMs) {
+    if (retries < 1) retries = 1;
+    for (int attempt = 0; attempt < retries; ++attempt) {
+        if (!sendPacket(data, len)) continue;
+        unsigned long start = millis();
+        while (millis() - start < timeoutMs) {
+            int packetSize = LoRa.parsePacket();
+            if (packetSize > 0) {
+                // read payload
+                String resp = "";
+                for (int i = 0; i < packetSize; ++i) {
+                    int ch = LoRa.read();
+                    if (ch < 0) break;
+                    resp += (char)ch;
+                }
+                resp.trim();
+                if (resp.equalsIgnoreCase("ACK") || resp.indexOf("\"type\":\"ack\"") >= 0) {
+                    return true;
+                }
+            }
+            delay(50);
+        }
+    }
+    return false;
+}
+
 int LoRaModule::receivePacket(uint8_t* buf, size_t bufsize) {
     int packetSize = LoRa.parsePacket();
     if (packetSize <= 0) return 0;

@@ -6,6 +6,8 @@
 #include "navigator.h"
 #include "imu_fusion.h"
 #include "ultrasonic.h"
+#include "loramodule.h"
+#include "sd_logger.h"
 
 // PWM channels for ESP32 LEDC
 #define CHAN_ML_A 0
@@ -25,6 +27,8 @@ GPSModule gps(Serial2);
 WaypointNavigator navigator(drive);
 IMUFusion imu;
 UltrasonicSensor frontUltrasonic(ULTRASONIC_TRIG_PIN, ULTRASONIC_ECHO_PIN);
+LoRaModule lora(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
+SdLogger sdLogger;
 
 enum RoverMode {
     MODE_IDLE,
@@ -116,33 +120,26 @@ void sendEvent(const char* level, const char* category, const String& message) {
 }
 
 void sendTelemetryNow() {
-    Serial.print("{\"type\":\"telemetry\",\"mode\":\"");
-    Serial.print(modeToString(currentMode));
-    Serial.print("\",\"mission_active\":");
-    Serial.print(missionActive ? "true" : "false");
-    Serial.print(",\"distance_cm\":");
-    Serial.print(lastDistanceCm, 1);
-    Serial.print(",\"heading_deg\":");
-    Serial.print(lastHeadingDeg, 1);
+    String payload = "{";
+    payload += String("\"type\":\"telemetry\",\"mode\":\"") + modeToString(currentMode) + "\"";
+    payload += String(",\"mission_active\":") + (missionActive ? "true" : "false");
+    payload += String(",\"distance_cm\":") + String(lastDistanceCm, 1);
+    payload += String(",\"heading_deg\":") + String(lastHeadingDeg, 1);
     if (lastGps.valid) {
-        Serial.print(",\"gps_lat\":");
-        Serial.print(lastGps.latitude, 6);
-        Serial.print(",\"gps_lon\":");
-        Serial.print(lastGps.longitude, 6);
-        Serial.print(",\"speed_kph\":");
-        Serial.print(lastGps.speedKph, 2);
-        Serial.print(",\"satellites\":");
-        Serial.print(lastGps.satellites);
+        payload += String(",\"gps_lat\":") + String(lastGps.latitude, 6);
+        payload += String(",\"gps_lon\":") + String(lastGps.longitude, 6);
+        payload += String(",\"speed_kph\":") + String(lastGps.speedKph, 2);
+        payload += String(",\"satellites\":") + String(lastGps.satellites);
     }
     if (missionActive) {
-        Serial.print(",\"target_lat\":");
-        Serial.print(targetLat, 6);
-        Serial.print(",\"target_lon\":");
-        Serial.print(targetLon, 6);
-        Serial.print(",\"target_radius_m\":");
-        Serial.print(targetRadiusM, 3);
+        payload += String(",\"target_lat\":") + String(targetLat, 6);
+        payload += String(",\"target_lon\":") + String(targetLon, 6);
+        payload += String(",\"target_radius_m\":") + String(targetRadiusM, 3);
     }
-    Serial.println("}");
+    payload += "}";
+    Serial.println(payload);
+    // log to SD if available
+    sdLogger.logLine(payload);
 }
 
 void startAvoidance(float obstacleDistanceCm) {
@@ -223,6 +220,14 @@ void handleMissionStart(const String& line) {
     avoidPhase = AVOID_NONE;
 
     sendEvent("INFO", "MISSION", String("Mission accepted: target=") + String(targetLat, 6) + "," + String(targetLon, 6));
+    // try to forward mission over LoRa and require ACK
+    if (lora.begin(433E6)) {
+        bool ok = lora.sendPacketWithAck((const uint8_t*)line.c_str(), line.length(), 3, 1500);
+        if (!ok) sendEvent("WARN", "LORA", "Mission forward failed or no ACK received");
+        else sendEvent("INFO", "LORA", "Mission forwarded over LoRa with ACK");
+    } else {
+        sendEvent("WARN", "LORA", "LoRa not initialized; mission not forwarded") ;
+    }
 }
 
 void handleCommandLine(const String& line) {
@@ -270,6 +275,21 @@ void handleCommandLine(const String& line) {
         sendTelemetryNow();
         return;
     }
+
+    // Magnetometer calibration command (blocking; runs for duration seconds)
+    if (line.indexOf("\"cmd\":\"calibrate_mag\"") >= 0) {
+        int dur = 15;
+        extractIntField(line, "duration_s", dur);
+        sendEvent("INFO", "CAL", String("Starting magnetometer calibration for ") + String(dur) + " s");
+        bool ok = imu.calibrateMagnetometer((unsigned int)max(1, dur));
+        if (ok) {
+            imu.saveMagCalibration();
+            sendEvent("INFO", "CAL", "Magnetometer calibration complete and saved");
+        } else {
+            sendEvent("WARN", "CAL", "Magnetometer calibration failed or insufficient data");
+        }
+        return;
+    }
 }
 
 void readSerialCommands() {
@@ -300,6 +320,14 @@ void setup() {
     imuReady = imu.begin();
     if (imuReady) sendEvent("INFO", "IMU", "IMU fusion initialized");
     else sendEvent("WARN", "IMU", "IMU init failed, heading fallback enabled");
+
+    // initialize SD logger
+    if (sdLogger.begin()) sendEvent("INFO", "SD", "SD logger ready");
+    else sendEvent("WARN", "SD", "SD logger not available");
+
+    // initialize LoRa (optional)
+    if (lora.begin(433E6)) sendEvent("INFO", "LORA", "LoRa initialized");
+    else sendEvent("WARN", "LORA", "LoRa init failed or not present");
 
     sendEvent("INFO", "SYSTEM", "Mission controller ready");
 }
