@@ -86,6 +86,11 @@ class TelemetrySnapshot:
     gas_raw: Optional[float] = None
     metal_raw: Optional[float] = None
     metal_detected: Optional[bool] = None
+    mag_cal_active: Optional[bool] = None
+    mag_cal_progress: Optional[int] = None
+    metal_freq_hz: Optional[float] = None
+    metal_freq_dev_pct: Optional[float] = None
+    metal_confidence: Optional[int] = None
     gps_lat: Optional[float] = None
     gps_lon: Optional[float] = None
     gps_alt_m: Optional[float] = None
@@ -126,9 +131,11 @@ class TelemetrySnapshot:
             "mission_id": self.mission_id,
             "waypoint_index": self.waypoint_index,
             "message": self.message,
-        }
-
-    def to_display_rows(self) -> List[Tuple[str, Any]]:
+                "mag_cal_active": self.mag_cal_active,
+                "mag_cal_progress": self.mag_cal_progress,
+            "metal_freq_hz": self.metal_freq_hz,
+            "metal_freq_dev_pct": self.metal_freq_dev_pct,
+            "metal_confidence": self.metal_confidence,
         rows = []
         for label, value in self.as_dict().items():
             if value not in (None, ""):
@@ -216,6 +223,11 @@ def snapshot_from_mapping(mapping: Dict[str, Any], source: str = "serial") -> Te
         mission_id=_get_first(lower, ["mission_id", "mission", "job"]),
         waypoint_index=_as_int(lower, ["waypoint_index", "wp", "index"]),
         message=_get_first(lower, ["message", "msg", "text"]),
+        mag_cal_active=_as_bool(lower, ["mag_cal_active", "magcal_active", "mag_cal"]),
+        mag_cal_progress=_as_int(lower, ["mag_cal_progress", "magcal_progress", "mag_progress"]),
+        metal_freq_hz=_as_float(lower, ["metal_freq_hz", "metal_frequency", "freq_hz"]),
+        metal_freq_dev_pct=_as_float(lower, ["metal_freq_dev_pct", "freq_deviation", "freq_dev"]),
+        metal_confidence=_as_int(lower, ["metal_confidence", "confidence", "metal_conf"]),
     )
 
 
@@ -315,6 +327,9 @@ def status_command() -> str:
 
 def calibrate_magnetometer_command(duration_s: int = 15) -> str:
     return build_command("calibrate_mag", duration_s=int(duration_s))
+
+def calibrate_magnetometer_stop_command() -> str:
+    return build_command("calibrate_mag_stop")
 
 
 def mission_start_packet(latitude: float, longitude: float, radius_cm: float) -> str:

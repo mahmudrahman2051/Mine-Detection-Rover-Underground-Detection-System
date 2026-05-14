@@ -51,14 +51,25 @@
 #define GPS_RX_PIN 16 // ESP32 RX2 (connect to TX of GPS)
 #define GPS_TX_PIN 17 // ESP32 TX2 (connect to RX of GPS)
 
-// Metal detector module
-#define METAL_DETECTOR_PIN 34 // digital input (also ADC-capable if analog desired)
+// Metal detector module - NE555 frequency-based (old single-pin setup, kept for compatibility)
+#define METAL_DETECTOR_PIN_OLD 34 // legacy single-pin detection
+
+// NE555 Metal Detector - Frequency-based system
+#define NE555_OUTPUT_PIN 27 // NE555 square wave output to this GPIO (interrupt-capable)
+#define NE555_CALIBRATION_DURATION_MS 3000 // 3 seconds baseline calibration
+#define NE555_SAMPLE_WINDOW_MS 100 // 100 ms frequency sample window
+#define NE555_DETECTION_THRESHOLD_PCT 15 // ±15% frequency deviation triggers detection
+#define NE555_SAMPLE_HISTORY_SIZE 10 // rolling average over 10 samples
 
 // MQ-2 smoke/gas sensor analog pin
 #define MQ2_PIN 36
 
 // SD card
 #define SD_CS_PIN 13
+
+// SD log rotation settings
+#define SD_LOG_MAX_BYTES (1024UL * 512UL) // 512 KB per file
+#define SD_LOG_BACKUPS 3
 
 
 

@@ -15,8 +15,12 @@ public:
     float getHeading();
     // expose raw sensor reads for diagnostics
     bool readRaw(float& ax, float& ay, float& az, float& gx, float& gy, float& gz, float& mx, float& my, float& mz);
-    // magnetometer calibration: collects samples for duration (seconds) and stores offsets
-    bool calibrateMagnetometer(unsigned int durationSeconds = 10);
+    // magnetometer calibration (non-blocking): start, stop, progress
+    bool startMagCalibration(unsigned int durationSeconds = 10);
+    void stopMagCalibration();
+    bool isMagCalibrating() const;
+    // returns 0..100 progress percent
+    int getMagCalProgress() const;
     void loadMagCalibration();
     void saveMagCalibration();
 private:
@@ -27,6 +31,13 @@ private:
     float magOffsetX = 0.0f;
     float magOffsetY = 0.0f;
     float magOffsetZ = 0.0f;
+    // calibration state
+    bool magCalActive = false;
+    unsigned long magCalEndMs = 0;
+    unsigned long magCalStartMs = 0;
+    float magMinX, magMinY, magMinZ;
+    float magMaxX, magMaxY, magMaxZ;
+    unsigned long magSampleCount = 0;
 };
 
 #endif

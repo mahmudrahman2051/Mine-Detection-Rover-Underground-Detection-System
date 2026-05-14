@@ -8,6 +8,7 @@
 #include "ultrasonic.h"
 #include "loramodule.h"
 #include "sd_logger.h"
+#include "metal_detector_ne555.h"
 
 // PWM channels for ESP32 LEDC
 #define CHAN_ML_A 0
@@ -29,6 +30,7 @@ IMUFusion imu;
 UltrasonicSensor frontUltrasonic(ULTRASONIC_TRIG_PIN, ULTRASONIC_ECHO_PIN);
 LoRaModule lora(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
 SdLogger sdLogger;
+MetalDetectorNE555 metalDetector;
 
 enum RoverMode {
     MODE_IDLE,
@@ -62,6 +64,7 @@ int avoidTurnDir = 1;
 float lastHeadingDeg = 0.0f;
 GPSData lastGps = {0.0, 0.0, 0.0, 0.0, 99.9, 0, false};
 String serialLine;
+bool metalDetectedPrevious = false; // track metal state change
 
 static const char* modeToString(RoverMode mode) {
     switch (mode) {
@@ -136,6 +139,18 @@ void sendTelemetryNow() {
         payload += String(",\"target_lon\":") + String(targetLon, 6);
         payload += String(",\"target_radius_m\":") + String(targetRadiusM, 3);
     }
+    // mag calibration progress
+    if (imu.isMagCalibrating()) {
+        payload += String(",\"mag_cal_active\":true");
+        payload += String(",\"mag_cal_progress\":") + String(imu.getMagCalProgress());
+    } else {
+        payload += String(",\"mag_cal_active\":false");
+    }
+    // metal detector status
+    payload += String(",\"metal_detected\":") + (metalDetector.isMetalDetected() ? "true" : "false");
+    payload += String(",\"metal_freq_hz\":") + String(metalDetector.getCurrentFrequency(), 1);
+    payload += String(",\"metal_freq_dev_pct\":") + String(metalDetector.getFrequencyDeviation(), 1);
+    payload += String(",\"metal_confidence\":") + String(metalDetector.getConfidence());
     payload += "}";
     Serial.println(payload);
     // log to SD if available
@@ -222,9 +237,9 @@ void handleMissionStart(const String& line) {
     sendEvent("INFO", "MISSION", String("Mission accepted: target=") + String(targetLat, 6) + "," + String(targetLon, 6));
     // try to forward mission over LoRa and require ACK
     if (lora.begin(433E6)) {
-        bool ok = lora.sendPacketWithAck((const uint8_t*)line.c_str(), line.length(), 3, 1500);
-        if (!ok) sendEvent("WARN", "LORA", "Mission forward failed or no ACK received");
-        else sendEvent("INFO", "LORA", "Mission forwarded over LoRa with ACK");
+        bool queued = lora.sendReliable(line.c_str(), 4, 1500);
+        if (!queued) sendEvent("WARN", "LORA", "Mission forward failed to queue (pending full)");
+        else sendEvent("INFO", "LORA", "Mission queued for reliable LoRa forward (msg_id assigned)");
     } else {
         sendEvent("WARN", "LORA", "LoRa not initialized; mission not forwarded") ;
     }
@@ -276,18 +291,18 @@ void handleCommandLine(const String& line) {
         return;
     }
 
-    // Magnetometer calibration command (blocking; runs for duration seconds)
+    // Magnetometer calibration commands (non-blocking)
     if (line.indexOf("\"cmd\":\"calibrate_mag\"") >= 0) {
         int dur = 15;
         extractIntField(line, "duration_s", dur);
         sendEvent("INFO", "CAL", String("Starting magnetometer calibration for ") + String(dur) + " s");
-        bool ok = imu.calibrateMagnetometer((unsigned int)max(1, dur));
-        if (ok) {
-            imu.saveMagCalibration();
-            sendEvent("INFO", "CAL", "Magnetometer calibration complete and saved");
-        } else {
-            sendEvent("WARN", "CAL", "Magnetometer calibration failed or insufficient data");
-        }
+        imu.startMagCalibration((unsigned int)max(1, dur));
+        return;
+    }
+
+    if (line.indexOf("\"cmd\":\"calibrate_mag_stop\"") >= 0) {
+        imu.stopMagCalibration();
+        sendEvent("INFO", "CAL", "Magnetometer calibration stopped by command");
         return;
     }
 }
@@ -329,6 +344,15 @@ void setup() {
     if (lora.begin(433E6)) sendEvent("INFO", "LORA", "LoRa initialized");
     else sendEvent("WARN", "LORA", "LoRa init failed or not present");
 
+    // initialize metal detector NE555
+    metalDetector.begin();
+    sendEvent("INFO", "METAL", "Starting metal detector calibration (3 sec, keep away from metal)...");
+    if (metalDetector.calibrate()) {
+        sendEvent("INFO", "METAL", String("Metal detector calibrated. Baseline: ") + String(metalDetector.getBaselineFrequency(), 1) + " Hz");
+    } else {
+        sendEvent("WARN", "METAL", "Metal detector calibration failed");
+    }
+
     sendEvent("INFO", "SYSTEM", "Mission controller ready");
 }
 
@@ -348,6 +372,30 @@ void loop() {
         imu.update();
         lastHeadingDeg = imu.getHeading();
     }
+
+    // update metal detector frequency measurement
+    metalDetector.update();
+    
+    // handle metal detection state change
+    bool metalNow = metalDetector.isMetalDetected();
+    if (metalNow && !metalDetectedPrevious) {
+        // Metal just detected!
+        sendEvent("WARN", "METAL", String("*** METAL DETECTED *** Freq dev: ") + String(metalDetector.getFrequencyDeviation(), 1) + "% Confidence: " + String(metalDetector.getConfidence()) + "%");
+        drive.stop(); // emergency stop
+        currentMode = MODE_IDLE;
+        missionActive = false;
+        // alert via LoRa if available and GPS lock present
+        if (lastGps.valid) {
+            String alert = String("{\"type\":\"alert\",\"alert_type\":\"metal_detected\",\"lat\":") + String(lastGps.latitude, 6)
+                         + String(",\"lon\":") + String(lastGps.longitude, 6)
+                         + String(",\"freq_hz\":") + String(metalDetector.getCurrentFrequency(), 1)
+                         + String(",\"confidence\":") + String(metalDetector.getConfidence())
+                         + String("}");
+            bool queued = lora.sendReliable(alert.c_str(), 4, 1500);
+            if (queued) sendEvent("INFO", "LORA", "Metal alert queued for LoRa transmission");
+        }
+    }
+    metalDetectedPrevious = metalNow;
 
     if (millis() - lastObstacleCheckMs >= OBSTACLE_CHECK_INTERVAL_MS) {
         lastObstacleCheckMs = millis();
@@ -382,6 +430,9 @@ void loop() {
     } else {
         drive.stop();
     }
+
+    // poll LoRa for incoming messages and reliable-send retries
+    lora.poll();
 
     if (millis() - lastTelemetryMs >= TELEMETRY_INTERVAL_MS) {
         lastTelemetryMs = millis();

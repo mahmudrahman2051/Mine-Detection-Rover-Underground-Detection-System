@@ -22,6 +22,26 @@ bool IMUFusion::update() {
     if (!sensor.readAccelGyro(ax, ay, az, gx, gy, gz)) return false;
     sensor.readMag(mx, my, mz); // optional
 
+    // if calibration active, collect samples
+    if (magCalActive) {
+        if (mx < magMinX) magMinX = mx;
+        if (my < magMinY) magMinY = my;
+        if (mz < magMinZ) magMinZ = mz;
+        if (mx > magMaxX) magMaxX = mx;
+        if (my > magMaxY) magMaxY = my;
+        if (mz > magMaxZ) magMaxZ = mz;
+        magSampleCount++;
+        // finish if time elapsed
+        if (millis() >= magCalEndMs) {
+            magCalActive = false;
+            // compute offsets
+            magOffsetX = (magMaxX + magMinX) * 0.5f;
+            magOffsetY = (magMaxY + magMinY) * 0.5f;
+            magOffsetZ = (magMaxZ + magMinZ) * 0.5f;
+            saveMagCalibration();
+        }
+    }
+
     // apply magnetometer calibration offsets
     mx -= magOffsetX; my -= magOffsetY; mz -= magOffsetZ;
 
@@ -43,29 +63,44 @@ bool IMUFusion::readRaw(float& ax, float& ay, float& az, float& gx, float& gy, f
 }
 
 bool IMUFusion::calibrateMagnetometer(unsigned int durationSeconds) {
-    unsigned long end = millis() + durationSeconds * 1000UL;
-    float minx =  1e6f, miny = 1e6f, minz = 1e6f;
-    float maxx = -1e6f, maxy = -1e6f, maxz = -1e6f;
-    while (millis() < end) {
-        float ax, ay, az, gx, gy, gz, mx, my, mz;
-        if (sensor.readAccelGyro(ax, ay, az, gx, gy, gz)) {
-            if (sensor.readMag(mx, my, mz)) {
-                if (mx < minx) minx = mx;
-                if (my < miny) miny = my;
-                if (mz < minz) minz = mz;
-                if (mx > maxx) maxx = mx;
-                if (my > maxy) maxy = my;
-                if (mz > maxz) maxz = mz;
-            }
-        }
-        delay(50);
-    }
-    if (minx > maxx) return false; // no data
-    magOffsetX = (maxx + minx) * 0.5f;
-    magOffsetY = (maxy + miny) * 0.5f;
-    magOffsetZ = (maxz + minz) * 0.5f;
-    saveMagCalibration();
+    // legacy blocking method: start, collect, save
+    return startMagCalibration(durationSeconds);
+}
+
+bool IMUFusion::startMagCalibration(unsigned int durationSeconds) {
+    if (durationSeconds < 1) durationSeconds = 1;
+    magCalActive = true;
+    magCalStartMs = millis();
+    magCalEndMs = magCalStartMs + (unsigned long)durationSeconds * 1000UL;
+    magMinX = magMinY = magMinZ = 1e6f;
+    magMaxX = magMaxY = magMaxZ = -1e6f;
+    magSampleCount = 0;
     return true;
+}
+
+void IMUFusion::stopMagCalibration() {
+    if (!magCalActive) return;
+    magCalActive = false;
+    if (magSampleCount > 0) {
+        magOffsetX = (magMaxX + magMinX) * 0.5f;
+        magOffsetY = (magMaxY + magMinY) * 0.5f;
+        magOffsetZ = (magMaxZ + magMinZ) * 0.5f;
+        saveMagCalibration();
+    }
+}
+
+bool IMUFusion::isMagCalibrating() const { return magCalActive; }
+
+int IMUFusion::getMagCalProgress() const {
+    if (!magCalActive) return 0;
+    unsigned long now = millis();
+    if (now >= magCalEndMs) return 100;
+    unsigned long total = magCalEndMs - magCalStartMs;
+    if (total == 0) return 0;
+    unsigned long elapsed = now - magCalStartMs;
+    int pct = (int)((elapsed * 100UL) / total);
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    return pct;
 }
 
 void IMUFusion::loadMagCalibration() {

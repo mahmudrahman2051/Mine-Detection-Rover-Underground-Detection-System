@@ -3,9 +3,9 @@
 This repository implements a modular autonomous 2-wheel rover built around an ESP32. The system is split into firmware running on the ESP32 and a laptop control station (Streamlit dashboard) used for mission planning, live telemetry, and manual override.
 
 **Highlights:**
-- **Hardware:** ESP32 (DOIT DEVKIT V1), SX1278 LoRa, NEO-6M GPS, MPU9250 (IMU), HMC5883L magnetometer support, 2×HC-SR04 ultrasonic sensors, MQ-2 smoke sensor, a small metal detector, BTS7960 motor drivers, 12V battery + buck converters.
-- **Firmware:** PlatformIO (Arduino framework). Modular drivers: motor, drive, GPS, IMU (MPU9250 + Madgwick AHRS), waypoint navigator, obstacle avoidance, LoRa comms, metal & gas sensors.
-- **Control Station:** Streamlit dashboard with interactive Leaflet map (streamlit-folium) for mission selection, centimetre-radius target, serial/LoRa mission upload, live rover track and telemetry.
+- **Hardware:** ESP32 (DOIT DEVKIT V1), SX1278 LoRa, NEO-6M GPS, MPU9250 (IMU), HMC5883L magnetometer support, 2×HC-SR04 ultrasonic sensors, MQ-2 smoke sensor, **NE555-based metal detector with search coil**, BTS7960 motor drivers, 12V battery + buck converters.
+- **Firmware:** PlatformIO (Arduino framework). Modular drivers: motor, drive, GPS, IMU (MPU9250 + Madgwick AHRS), waypoint navigator, obstacle avoidance, LoRa comms, **frequency-based metal detection (interrupt counting + calibration)**, metal & gas sensors.
+- **Control Station:** Streamlit dashboard with interactive Leaflet map (streamlit-folium) for mission selection, centimetre-radius target, serial/LoRa mission upload, live rover track, telemetry, **real-time metal detector frequency and confidence display**.
 
 **Repository layout (important files):**
 - **`platformio.ini`** — project configuration and lib dependencies.
@@ -95,6 +95,7 @@ streamlit run dashboard/app.py
 - LoRa wrapper: [src/loramodule.cpp](src/loramodule.cpp)
 - Dashboard UI: [dashboard/app.py](dashboard/app.py)
 - Dashboard protocol: [dashboard/protocol.py](dashboard/protocol.py)
+- **Metal detector (NE555):** [include/metal_detector_ne555.h](include/metal_detector_ne555.h) and [src/metal_detector_ne555.cpp](src/metal_detector_ne555.cpp) — frequency-based detection with interrupt counting, calibration, and noise filtering. See [docs/METAL_DETECTOR_NE555.md](docs/METAL_DETECTOR_NE555.md) for hardware wiring and tuning guide.
 
 If you want, I can:
 - add a one-page wiring diagram (SVG/PNG) to `docs/`;

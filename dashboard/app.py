@@ -18,6 +18,7 @@ from protocol import (  # noqa: E402
     TelemetrySnapshot,
     EventRecord,
     calibrate_magnetometer_command,
+    calibrate_magnetometer_stop_command,
     drive_command,
     estop_command,
     mission_command,
@@ -272,6 +273,19 @@ def render_dashboard() -> None:
 
     metric_cols = st.columns(4)
     with metric_cols[0]:
+        render_metric_card("Metal Freq", f"{fmt_float(telemetry.metal_freq_hz, ' Hz')}", "NE555 frequency")
+    with metric_cols[1]:
+        freq_dev = telemetry.metal_freq_dev_pct or 0
+        dev_color = "🔴" if abs(freq_dev) > 15 else "🟡" if abs(freq_dev) > 5 else "🟢"
+        render_metric_card("Freq Deviation", f"{dev_color} {fmt_float(freq_dev, '%')}", "Frequency shift from baseline")
+    with metric_cols[2]:
+        render_metric_card("Metal Confidence", f"{fmt_float(telemetry.metal_confidence, '%')}", "Detection confidence")
+    with metric_cols[3]:
+        metal_status = "🚨 DETECTED" if telemetry.metal_detected else "✓ Clear"
+        render_metric_card("Metal Status", metal_status, "Metal detection status")
+
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
         render_metric_card("Temperature", f"{fmt_float(telemetry.temperature_c, ' °C')}", "Ambient temperature")
     with metric_cols[1]:
         render_metric_card("Humidity", f"{fmt_float(telemetry.humidity_pct, '%')}", "Ambient humidity")
@@ -448,8 +462,13 @@ def render_control_panel() -> None:
         if st.button("Emergency Stop", type="primary", use_container_width=True):
             send_command(estop_command(), "Emergency stop sent")
     with safety_cols[1]:
-        if st.button("Calibrate Magnetometer", use_container_width=True):
-            send_command(calibrate_magnetometer_command(int(st.session_state.mag_cal_seconds)), "Magnetometer calibration requested")
+        if st.session_state.telemetry.mag_cal_active:
+            st.progress(min(max(int(st.session_state.telemetry.mag_cal_progress or 0), 0), 100))
+            if st.button("Stop Magnetometer Calibration", use_container_width=True):
+                send_command(calibrate_magnetometer_stop_command(), "Stop calibration sent")
+        else:
+            if st.button("Calibrate Magnetometer", use_container_width=True):
+                send_command(calibrate_magnetometer_command(int(st.session_state.mag_cal_seconds)), "Magnetometer calibration requested")
     with safety_cols[2]:
         if st.button("Stop Motors", use_container_width=True):
             send_command(stop_command(), "Stop motors sent")

@@ -11,6 +11,10 @@ public:
     bool sendPacket(const uint8_t* data, size_t len);
     // send and wait for an ACK reply; returns true if ACK received
     bool sendPacketWithAck(const uint8_t* data, size_t len, int retries = 3, unsigned long timeoutMs = 1500);
+    // enqueue a reliable message (non-blocking). Returns true if queued.
+    bool sendReliable(const char* payload, int retries = 3, unsigned long timeoutMs = 1500);
+    // poll the LoRa module to process incoming packets and retry logic. Call regularly from loop().
+    void poll();
     // non-blocking receive; returns length or 0
     int receivePacket(uint8_t* buf, size_t bufsize);
 
