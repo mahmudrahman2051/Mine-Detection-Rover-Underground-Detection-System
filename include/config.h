@@ -20,7 +20,7 @@
 #define MAX_DISTANCE 400
 #define MIN_DISTANCE 2
 
-#endif
+#define MOTOR_DRIVER_L298N 0 // set 1 to use L298N wiring (low-current), 0 to keep BTS7960
 
 // Motor driver (BTS7960) pins - Phase 1
 #define MOTOR_L_PWM_A 25
@@ -70,6 +70,14 @@
 // SD log rotation settings
 #define SD_LOG_MAX_BYTES (1024UL * 512UL) // 512 KB per file
 #define SD_LOG_BACKUPS 3
+
+// IMU usage toggle: set to 0 to compile/run without MPU9250 / Madgwick AHRS
+#define USE_IMU 1
+
+// If IMU is disabled, fallback to GPS-derived heading when speed > this (m/s)
+#define HEADING_FALLBACK_SPEED_THRESHOLD_MPS 0.5f
+
+#endif
 
 
 

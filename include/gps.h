@@ -9,6 +9,7 @@ struct GPSData {
     double longitude;
     double altitude;
     double speedKph;
+    double courseDeg;
     double hdop;
     int satellites;
     bool valid;

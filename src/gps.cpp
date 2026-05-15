@@ -68,10 +68,12 @@ GPSData GPSModule::getData() {
 
         d.altitude = gps.altitude.isValid() ? gps.altitude.meters() : 0.0;
         d.speedKph = gps.speed.isValid() ? gps.speed.kmph() : 0.0;
+        d.courseDeg = gps.course.isValid() ? gps.course.deg() : NAN;
         d.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
         d.satellites = gps.satellites.isValid() ? gps.satellites.value() : 0;
     } else {
         d.latitude = d.longitude = d.altitude = d.speedKph = d.hdop = 0.0;
+        d.courseDeg = NAN;
         d.satellites = 0;
     }
     return d;

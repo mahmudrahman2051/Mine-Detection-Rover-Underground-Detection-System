@@ -4,7 +4,9 @@
 #include "drive.h"
 #include "gps.h"
 #include "navigator.h"
+#if USE_IMU
 #include "imu_fusion.h"
+#endif
 #include "ultrasonic.h"
 #include "loramodule.h"
 #include "sd_logger.h"
@@ -26,7 +28,9 @@ Motor motorR(MOTOR_R_PWM_A, MOTOR_R_PWM_B, CHAN_MR_A, CHAN_MR_B);
 Drive drive(motorL, motorR);
 GPSModule gps(Serial2);
 WaypointNavigator navigator(drive);
+#if USE_IMU
 IMUFusion imu;
+#endif
 UltrasonicSensor frontUltrasonic(ULTRASONIC_TRIG_PIN, ULTRASONIC_ECHO_PIN);
 LoRaModule lora(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
 SdLogger sdLogger;
@@ -139,13 +143,17 @@ void sendTelemetryNow() {
         payload += String(",\"target_lon\":") + String(targetLon, 6);
         payload += String(",\"target_radius_m\":") + String(targetRadiusM, 3);
     }
-    // mag calibration progress
+    // mag calibration progress (only when IMU enabled)
+#if USE_IMU
     if (imu.isMagCalibrating()) {
         payload += String(",\"mag_cal_active\":true");
         payload += String(",\"mag_cal_progress\":") + String(imu.getMagCalProgress());
     } else {
         payload += String(",\"mag_cal_active\":false");
     }
+#else
+    payload += String(",\"mag_cal_active\":false");
+#endif
     // metal detector status
     payload += String(",\"metal_detected\":") + (metalDetector.isMetalDetected() ? "true" : "false");
     payload += String(",\"metal_freq_hz\":") + String(metalDetector.getCurrentFrequency(), 1);
@@ -296,13 +304,21 @@ void handleCommandLine(const String& line) {
         int dur = 15;
         extractIntField(line, "duration_s", dur);
         sendEvent("INFO", "CAL", String("Starting magnetometer calibration for ") + String(dur) + " s");
+    #if USE_IMU
         imu.startMagCalibration((unsigned int)max(1, dur));
+    #else
+        sendEvent("WARN", "CAL", "IMU disabled: magnetometer calibration not available");
+    #endif
         return;
     }
 
     if (line.indexOf("\"cmd\":\"calibrate_mag_stop\"") >= 0) {
+    #if USE_IMU
         imu.stopMagCalibration();
         sendEvent("INFO", "CAL", "Magnetometer calibration stopped by command");
+    #else
+        sendEvent("WARN", "CAL", "IMU disabled: no calibration to stop");
+    #endif
         return;
     }
 }
@@ -332,9 +348,14 @@ void setup() {
     navigator.begin();
     frontUltrasonic.init();
 
+#if USE_IMU
     imuReady = imu.begin();
     if (imuReady) sendEvent("INFO", "IMU", "IMU fusion initialized");
     else sendEvent("WARN", "IMU", "IMU init failed, heading fallback enabled");
+#else
+    imuReady = false;
+    sendEvent("INFO", "IMU", "IMU disabled at compile time; heading fallback enabled");
+#endif
 
     // initialize SD logger
     if (sdLogger.begin()) sendEvent("INFO", "SD", "SD logger ready");
@@ -371,6 +392,12 @@ void loop() {
     if (imuReady) {
         imu.update();
         lastHeadingDeg = imu.getHeading();
+    } else {
+        // Heading fallback: use GPS course when moving above threshold
+        float fallbackKph = HEADING_FALLBACK_SPEED_THRESHOLD_MPS * 3.6f;
+        if (lastGps.valid && lastGps.speedKph > fallbackKph && !isnan(lastGps.courseDeg)) {
+            lastHeadingDeg = lastGps.courseDeg;
+        }
     }
 
     // update metal detector frequency measurement
