@@ -20,13 +20,24 @@
 #define MAX_DISTANCE 400
 #define MIN_DISTANCE 2
 
-#define MOTOR_DRIVER_L298N 0 // set 1 to use L298N wiring (low-current), 0 to keep BTS7960
+// Use L298N motor driver wiring (1) or BTS7960 (0)
+#define MOTOR_DRIVER_L298N 1 // set 1 to use L298N wiring (low-current), 0 to keep BTS7960
 
 // Motor driver (BTS7960) pins - Phase 1
+// BTS7960 legacy pins (kept for reference)
 #define MOTOR_L_PWM_A 25
 #define MOTOR_L_PWM_B 26
 #define MOTOR_R_PWM_A 27
 #define MOTOR_R_PWM_B 14
+
+// L298N pin mapping (IN1/IN2 + EN(PWM))
+#define MOTOR_L_IN1_PIN 26
+#define MOTOR_L_IN2_PIN 27
+#define MOTOR_L_EN_PIN 25
+
+#define MOTOR_R_IN1_PIN 14
+#define MOTOR_R_IN2_PIN 12
+#define MOTOR_R_EN_PIN 13
 
 // Emergency stop (active LOW)
 #define E_STOP_PIN 12
@@ -43,8 +54,13 @@
 #define BATTERY_LOW_VOLTAGE 10.5
 
 // LoRa (SX1278) pins (VSPI)
-#define LORA_SS_PIN 18
-#define LORA_RST_PIN 22
+// SPI wiring (common VSPI pins)
+#define LORA_MOSI_PIN 23
+#define LORA_MISO_PIN 19
+#define LORA_SCK_PIN 18
+// LoRa control pins
+#define LORA_SS_PIN 5   // NSS / CS
+#define LORA_RST_PIN 22 // RESET
 #define LORA_DIO0_PIN 21
 
 // GPS (NEO-6M) Serial2 pins
@@ -62,17 +78,24 @@
 #define NE555_SAMPLE_HISTORY_SIZE 10 // rolling average over 10 samples
 
 // MQ-2 smoke/gas sensor analog pin
-#define MQ2_PIN 36
+#define MQ2_PIN 34
+
+// Ultrasonic sensors - two sensors (front and rear)
+#define ULTRASONIC_FRONT_TRIG_PIN 33
+#define ULTRASONIC_FRONT_ECHO_PIN 32
+#define ULTRASONIC_REAR_TRIG_PIN 15
+#define ULTRASONIC_REAR_ECHO_PIN 39
 
 // SD card
+// SD card (optional)
+#define USE_SD 0
 #define SD_CS_PIN 13
 
 // SD log rotation settings
 #define SD_LOG_MAX_BYTES (1024UL * 512UL) // 512 KB per file
 #define SD_LOG_BACKUPS 3
 
-// IMU usage toggle: set to 0 to compile/run without MPU9250 / Madgwick AHRS
-#define USE_IMU 1
+#define USE_IMU 0
 
 // If IMU is disabled, fallback to GPS-derived heading when speed > this (m/s)
 #define HEADING_FALLBACK_SPEED_THRESHOLD_MPS 0.5f

@@ -9,7 +9,9 @@
 #endif
 #include "ultrasonic.h"
 #include "loramodule.h"
+#if USE_SD
 #include "sd_logger.h"
+#endif
 #include "metal_detector_ne555.h"
 
 // PWM channels for ESP32 LEDC
@@ -23,17 +25,25 @@ static const float OBSTACLE_THRESHOLD_CM = 35.0f;
 static const unsigned long TELEMETRY_INTERVAL_MS = 500;
 static const unsigned long OBSTACLE_CHECK_INTERVAL_MS = 120;
 
+#if MOTOR_DRIVER_L298N
+Motor motorL(MOTOR_L_IN1_PIN, MOTOR_L_IN2_PIN, MOTOR_L_EN_PIN, CHAN_ML_A, true);
+Motor motorR(MOTOR_R_IN1_PIN, MOTOR_R_IN2_PIN, MOTOR_R_EN_PIN, CHAN_MR_A, true);
+#else
 Motor motorL(MOTOR_L_PWM_A, MOTOR_L_PWM_B, CHAN_ML_A, CHAN_ML_B);
 Motor motorR(MOTOR_R_PWM_A, MOTOR_R_PWM_B, CHAN_MR_A, CHAN_MR_B);
+#endif
 Drive drive(motorL, motorR);
 GPSModule gps(Serial2);
 WaypointNavigator navigator(drive);
 #if USE_IMU
 IMUFusion imu;
 #endif
-UltrasonicSensor frontUltrasonic(ULTRASONIC_TRIG_PIN, ULTRASONIC_ECHO_PIN);
+UltrasonicSensor frontUltrasonic(ULTRASONIC_FRONT_TRIG_PIN, ULTRASONIC_FRONT_ECHO_PIN);
+UltrasonicSensor rearUltrasonic(ULTRASONIC_REAR_TRIG_PIN, ULTRASONIC_REAR_ECHO_PIN);
 LoRaModule lora(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
+#if USE_SD
 SdLogger sdLogger;
+#endif
 MetalDetectorNE555 metalDetector;
 
 enum RoverMode {
@@ -66,7 +76,7 @@ unsigned long manualUntilMs = 0;
 float lastDistanceCm = -1.0f;
 int avoidTurnDir = 1;
 float lastHeadingDeg = 0.0f;
-GPSData lastGps = {0.0, 0.0, 0.0, 0.0, 99.9, 0, false};
+GPSData lastGps = {0.0, 0.0, 0.0, 0.0, NAN, 99.9, 0, false};
 String serialLine;
 bool metalDetectedPrevious = false; // track metal state change
 
@@ -162,7 +172,9 @@ void sendTelemetryNow() {
     payload += "}";
     Serial.println(payload);
     // log to SD if available
+#if USE_SD
     sdLogger.logLine(payload);
+#endif
 }
 
 void startAvoidance(float obstacleDistanceCm) {
@@ -358,8 +370,12 @@ void setup() {
 #endif
 
     // initialize SD logger
+#if USE_SD
     if (sdLogger.begin()) sendEvent("INFO", "SD", "SD logger ready");
     else sendEvent("WARN", "SD", "SD logger not available");
+#else
+    sendEvent("INFO", "SD", "SD logger disabled in config");
+#endif
 
     // initialize LoRa (optional)
     if (lora.begin(433E6)) sendEvent("INFO", "LORA", "LoRa initialized");

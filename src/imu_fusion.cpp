@@ -2,6 +2,8 @@
 #include <Preferences.h>
 #include <Arduino.h>
 
+#if USE_IMU
+
 IMUFusion::IMUFusion() : sensor(), filter(0.08f), lastMicros(0), lastHeading(0.0f) {}
 
 bool IMUFusion::begin() {
@@ -120,3 +122,20 @@ void IMUFusion::saveMagCalibration() {
     prefs.putFloat("oz", magOffsetZ);
     prefs.end();
 }
+
+#else
+
+// Stubs when IMU is disabled
+IMUFusion::IMUFusion() {}
+bool IMUFusion::begin() { return false; }
+bool IMUFusion::update() { return false; }
+float IMUFusion::getHeading() { return 0.0f; }
+bool IMUFusion::readRaw(float& ax, float& ay, float& az, float& gx, float& gy, float& gz, float& mx, float& my, float& mz) { return false; }
+bool IMUFusion::startMagCalibration(unsigned int durationSeconds) { return false; }
+void IMUFusion::stopMagCalibration() {}
+bool IMUFusion::isMagCalibrating() const { return false; }
+int IMUFusion::getMagCalProgress() const { return 0; }
+void IMUFusion::loadMagCalibration() {}
+void IMUFusion::saveMagCalibration() {}
+
+#endif
