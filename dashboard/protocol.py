@@ -131,11 +131,14 @@ class TelemetrySnapshot:
             "mission_id": self.mission_id,
             "waypoint_index": self.waypoint_index,
             "message": self.message,
-                "mag_cal_active": self.mag_cal_active,
-                "mag_cal_progress": self.mag_cal_progress,
+            "mag_cal_active": self.mag_cal_active,
+            "mag_cal_progress": self.mag_cal_progress,
             "metal_freq_hz": self.metal_freq_hz,
             "metal_freq_dev_pct": self.metal_freq_dev_pct,
             "metal_confidence": self.metal_confidence,
+        }
+
+    def to_display_rows(self) -> List[Tuple[str, Any]]:
         rows = []
         for label, value in self.as_dict().items():
             if value not in (None, ""):

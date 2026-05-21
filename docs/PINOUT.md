@@ -19,11 +19,9 @@ Notes:
 - EN pins are driven with ESP32 LEDC PWM. IN1 / IN2 are digital direction pins.
 - If you use a different L298N module wiring, update the pins in `include/config.h`.
 
-### Ultrasonic sensors (2)
+### Ultrasonic sensor (front only)
 - Front TRIG: `ULTRASONIC_FRONT_TRIG_PIN` = GPIO 33
 - Front ECHO: `ULTRASONIC_FRONT_ECHO_PIN` = GPIO 32
-- Rear TRIG:  `ULTRASONIC_REAR_TRIG_PIN`  = GPIO 15
-- Rear ECHO:  `ULTRASONIC_REAR_ECHO_PIN`  = GPIO 39
 
 Wiring notes:
 - TRIG → output pin from ESP32 (driven HIGH pulse). ECHO → input pin (measure pulse width). Use `pulseIn()` safe pin choices and avoid pins used by SPI where possible.
@@ -43,8 +41,8 @@ Wiring notes:
 Note: some ESP32 devkits do not expose GPIO36; if your board lacks GPIO36 choose another ADC pin (GPIO32-39 range) that is available on your module (GPIO34 or GPIO35 are common alternatives).
 
 ### GPS — NEO‑6M (UART)
-- `GPS_RX_PIN` = GPIO 16  (ESP32 RX2) — connect to GPS TX
-- `GPS_TX_PIN` = GPIO 17  (ESP32 TX2) — connect to GPS RX
+- `GPS_RX_PIN` = GPIO 16  (ESP32 RX2) — connect to GPS TX   ##13 
+- `GPS_TX_PIN` = GPIO 17  (ESP32 TX2) — connect to GPS RX  ##25
 
 Notes:
 - Many NEO‑6M modules include a regulator; prefer 3.3V for the logic interface when possible. GPS course is available in telemetry (used for heading fallback).
@@ -52,7 +50,7 @@ Notes:
 ### LoRa — SX1278 (SPI)
 - `LORA_MOSI_PIN` = GPIO 23
 - `LORA_MISO_PIN` = GPIO 19
-- `LORA_SCK_PIN`  = GPIO 18
+- `LORA_SCK_PIN`  = GPIO 18 ##
 - `LORA_SS_PIN`   = GPIO 5   (NSS / CS)
 - `LORA_RST_PIN`  = GPIO 22
 - `LORA_DIO0_PIN` = GPIO 21
@@ -65,28 +63,30 @@ Notes:
 	- NSS  -> GPIO5
 	- DIO0 -> GPIO21
 	- RESET-> GPIO22
-- Warning: `ULTRASONIC_REAR_ECHO_PIN` was moved off GPIO18 to avoid conflict with SCK. `ULTRASONIC_REAR_TRIG_PIN` was moved to GPIO15 — GPIO15 is a boot strapping pin; ensure it is not driven HIGH at reset.
+- Rear ultrasonic removed. GPIO39 is now used by `NE555_OUTPUT_PIN` (input-only is OK for NE555 output).
 
 ### Metal detector — NE555 module
-- `NE555_OUTPUT_PIN` = GPIO 27
+- `NE555_OUTPUT_PIN` = GPIO 39
 
 Notes:
 - NE555 module output is typically a square wave (5V). Protect ESP32 GPIO with a series resistor (100 Ω) and a clamping/level-shifting method (e.g., resistor divider, comparator, or optocoupler) to avoid 5V on ESP32 pins. See `docs/METAL_DETECTOR_NE555.md` for details.
 
 ### Other signals
-- `E_STOP_PIN` = GPIO 12 (active LOW)
+- `E_STOP_PIN` = GPIO 36 (active LOW)
+
+### Actuator LEDs
+- `HEATER_LED_PIN` = GPIO 15
+- `COOLER_LED_PIN` = GPIO 2
 
 ### Telemetry & Misc
 - Serial baud: `BAUD_RATE` = 115200 (Serial monitor)
 
 ## Important Conflicts & Warnings
 
-- GPIO 18 is currently used as `LORA_SS_PIN` and also mapped as `ULTRASONIC_REAR_ECHO_PIN` in the default config. This is a conflict — choose one and update `include/config.h` accordingly.
-- GPIO 27 is set as `MOTOR_L_IN2_PIN` (L298N) and `NE555_OUTPUT_PIN` was also previously 27. If `NE555_OUTPUT_PIN` remains 27 you will have a conflict. Move one of them to a free GPIO.
+- GPIO 27 is used as `MOTOR_L_IN2_PIN` (L298N). `NE555_OUTPUT_PIN` has been moved to GPIO39 to avoid conflict.
 - Many ESP32 pins have special boot or strapping behavior — avoid using strapping pins for signals that must be driven at boot. Check ESP32 pinout before final wiring.
 
-## How to change pins
-
+## How to change pin
 1. Open `include/config.h` in the project root.
 2. Edit the `#define` values (e.g., `MOTOR_L_IN1_PIN`, `ULTRASONIC_REAR_ECHO_PIN`, etc.) to match your wiring.
 3. Rebuild and flash:

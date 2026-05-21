@@ -9,9 +9,13 @@
 
 #define BAUD_RATE 115200
 
-// Actuator pins
-#define HEATER_LED_PIN 12
-#define COOLER_LED_PIN 13
+// Manual control power override
+#define MANUAL_FORCE_MAX_POWER 1
+#define MANUAL_MAX_POWER 255
+
+// Actuator pins (moved off motor pins)
+#define HEATER_LED_PIN 15
+#define COOLER_LED_PIN 2
 
 // Temperature thresholds (°C)
 #define TEMP_HEATER_THRESHOLD 18
@@ -39,8 +43,11 @@
 #define MOTOR_R_IN2_PIN 12
 #define MOTOR_R_EN_PIN 13
 
-// Emergency stop (active LOW)
-#define E_STOP_PIN 12
+// L298N enable pins: 1 = PWM via ENA/ENB, 0 = ENA/ENB tied HIGH for full power
+#define L298N_USE_ENABLE_PINS 0
+
+// Emergency stop (active LOW) - moved off motor pins
+#define E_STOP_PIN 36
 
 // PWM settings
 #define MOTOR_PWM_FREQ 20000
@@ -71,7 +78,8 @@
 #define METAL_DETECTOR_PIN_OLD 34 // legacy single-pin detection
 
 // NE555 Metal Detector - Frequency-based system
-#define NE555_OUTPUT_PIN 27 // NE555 square wave output to this GPIO (interrupt-capable)
+// Reassigned to free pin after removing rear ultrasonic
+#define NE555_OUTPUT_PIN 39 // NE555 square wave output to this GPIO (interrupt-capable)
 #define NE555_CALIBRATION_DURATION_MS 3000 // 3 seconds baseline calibration
 #define NE555_SAMPLE_WINDOW_MS 100 // 100 ms frequency sample window
 #define NE555_DETECTION_THRESHOLD_PCT 15 // ±15% frequency deviation triggers detection
@@ -80,11 +88,9 @@
 // MQ-2 smoke/gas sensor analog pin
 #define MQ2_PIN 34
 
-// Ultrasonic sensors - two sensors (front and rear)
+// Ultrasonic sensor - front only
 #define ULTRASONIC_FRONT_TRIG_PIN 33
 #define ULTRASONIC_FRONT_ECHO_PIN 32
-#define ULTRASONIC_REAR_TRIG_PIN 15
-#define ULTRASONIC_REAR_ECHO_PIN 39
 
 // SD card
 // SD card (optional)

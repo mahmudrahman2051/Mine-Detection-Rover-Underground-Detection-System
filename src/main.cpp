@@ -39,7 +39,6 @@ WaypointNavigator navigator(drive);
 IMUFusion imu;
 #endif
 UltrasonicSensor frontUltrasonic(ULTRASONIC_FRONT_TRIG_PIN, ULTRASONIC_FRONT_ECHO_PIN);
-UltrasonicSensor rearUltrasonic(ULTRASONIC_REAR_TRIG_PIN, ULTRASONIC_REAR_ECHO_PIN);
 LoRaModule lora(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
 #if USE_SD
 SdLogger sdLogger;
@@ -214,6 +213,10 @@ void handleDriveCommand(const String& line) {
     extractIntField(line, "left", left);
     extractIntField(line, "right", right);
     extractIntField(line, "duration_ms", durationMs);
+#if MANUAL_FORCE_MAX_POWER
+    if (left != 0) left = left > 0 ? MANUAL_MAX_POWER : -MANUAL_MAX_POWER;
+    if (right != 0) right = right > 0 ? MANUAL_MAX_POWER : -MANUAL_MAX_POWER;
+#endif
     left = constrain(left, -255, 255);
     right = constrain(right, -255, 255);
     drive.setSpeed(left, right);
@@ -405,6 +408,7 @@ void loop() {
     gps.feed();
     lastGps = gps.getData();
 
+#if USE_IMU
     if (imuReady) {
         imu.update();
         lastHeadingDeg = imu.getHeading();
@@ -415,6 +419,13 @@ void loop() {
             lastHeadingDeg = lastGps.courseDeg;
         }
     }
+#else
+    // Heading fallback: use GPS course when moving above threshold
+    float fallbackKph = HEADING_FALLBACK_SPEED_THRESHOLD_MPS * 3.6f;
+    if (lastGps.valid && lastGps.speedKph > fallbackKph && !isnan(lastGps.courseDeg)) {
+        lastHeadingDeg = lastGps.courseDeg;
+    }
+#endif
 
     // update metal detector frequency measurement
     metalDetector.update();

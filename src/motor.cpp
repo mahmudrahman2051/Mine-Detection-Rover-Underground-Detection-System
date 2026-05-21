@@ -11,11 +11,18 @@ void Motor::begin(uint32_t freq, uint8_t resolution) {
     if (isL298) {
         pinMode(in1Pin, OUTPUT);
         pinMode(in2Pin, OUTPUT);
+    #if L298N_USE_ENABLE_PINS
         ledcSetup(enChannel, freq, resolution);
         ledcAttachPin(enPin, enChannel);
+        ledcWrite(enChannel, 0);
+    #else
+        if (enPin >= 0) {
+            pinMode(enPin, OUTPUT);
+            digitalWrite(enPin, HIGH);
+        }
+    #endif
         digitalWrite(in1Pin, LOW);
         digitalWrite(in2Pin, LOW);
-        ledcWrite(enChannel, 0);
         return;
     }
     ledcSetup(chanA, freq, resolution);
@@ -40,16 +47,22 @@ void Motor::setSpeed(int16_t speed) {
         if (speed > 0) {
             digitalWrite(in1Pin, HIGH);
             digitalWrite(in2Pin, LOW);
+        #if L298N_USE_ENABLE_PINS
             ledcWrite(enChannel, duty);
+        #endif
         } else if (speed < 0) {
             digitalWrite(in1Pin, LOW);
             digitalWrite(in2Pin, HIGH);
+        #if L298N_USE_ENABLE_PINS
             ledcWrite(enChannel, duty);
+        #endif
         } else {
             // coast
             digitalWrite(in1Pin, LOW);
             digitalWrite(in2Pin, LOW);
+        #if L298N_USE_ENABLE_PINS
             ledcWrite(enChannel, 0);
+        #endif
         }
         return;
     }
@@ -67,7 +80,9 @@ void Motor::setSpeed(int16_t speed) {
 
 void Motor::stop() {
     if (isL298) {
+    #if L298N_USE_ENABLE_PINS
         ledcWrite(enChannel, 0);
+    #endif
         digitalWrite(in1Pin, LOW);
         digitalWrite(in2Pin, LOW);
         return;

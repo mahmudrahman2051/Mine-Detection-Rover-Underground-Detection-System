@@ -2,6 +2,7 @@
 #define METAL_DETECTOR_NE555_H
 
 #include <Arduino.h>
+#include "config.h"
 
 class MetalDetectorNE555 {
 public:
