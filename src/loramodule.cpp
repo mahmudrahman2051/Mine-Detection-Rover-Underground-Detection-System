@@ -79,6 +79,16 @@ static uint32_t nextMsgId = 1;
 static const int MAX_PENDING = 4;
 static PendingMsg pending[MAX_PENDING];
 
+struct RxMsg {
+    String payload;
+};
+
+static const int MAX_RX = 4;
+static RxMsg rxQueue[MAX_RX];
+static int rxHead = 0;
+static int rxTail = 0;
+static int rxCount = 0;
+
 bool LoRaModule::sendReliable(const char* payload, int retries, unsigned long timeoutMs) {
     // find free slot
     int idx = -1;
@@ -94,6 +104,25 @@ bool LoRaModule::sendReliable(const char* payload, int retries, unsigned long ti
     pending[idx].lastSentMs = 0;
     pending[idx].active = true;
     pending[idx].backoffExp = 0;
+    return true;
+}
+
+static void queue_rx(const String& msg) {
+    if (rxCount >= MAX_RX) {
+        rxHead = (rxHead + 1) % MAX_RX;
+        rxCount--;
+    }
+    rxQueue[rxTail].payload = msg;
+    rxTail = (rxTail + 1) % MAX_RX;
+    rxCount++;
+}
+
+bool LoRaModule::readMessage(String& out) {
+    if (rxCount <= 0) return false;
+    out = rxQueue[rxHead].payload;
+    rxQueue[rxHead].payload = "";
+    rxHead = (rxHead + 1) % MAX_RX;
+    rxCount--;
     return true;
 }
 
@@ -138,6 +167,7 @@ void LoRaModule::poll() {
                 send_raw_string(ack);
             }
             // forward payload to Serial for main to parse
+            queue_rx(resp);
             Serial.println(resp);
         }
     }

@@ -48,18 +48,18 @@ The coil and NE555 form an LC tank circuit. The NE555 oscillates at a frequency 
 
 | ESP32 GPIO | Function | Note |
 |-----------|----------|------|
-| GPIO 27 | NE555 OUT (square wave) | Rising-edge interrupt pin, input |
+| GPIO 39 | NE555 OUT (square wave) | Rising-edge interrupt pin, input-only GPIO |
 | GND | Common ground | Shared reference |
 
-**GPIO 27** is interrupt-capable on ESP32 and has good noise immunity.
+**GPIO 39** matches the current firmware in `include/config.h`. It is input-only, which is fine for a sensor output.
 
 ### Full Schematic
 
 ```
-NE555 Output (pin 3)  ---> [100 Ω resistor] ---> ESP32 GPIO 27 (with ~10k pulldown to GND)
+NE555 Output (pin 3)  ---> [level shift / divider] ---> ESP32 GPIO 39
 ```
 
-*The 100 Ω resistor protects the GPIO, and the pulldown ensures clean logic levels.*
+*If your NE555 board outputs 5V logic, do not connect it directly to the ESP32. Use a divider or level shifter so the ESP32 sees 3.3V max.*
 
 ## Configuration
 
@@ -67,7 +67,7 @@ Edit `include/config.h`:
 
 ```cpp
 // NE555 Metal Detector - Frequency-based system
-#define NE555_OUTPUT_PIN 27                 // GPIO pin connected to NE555 OUT
+#define NE555_OUTPUT_PIN 39                 // GPIO pin connected to NE555 OUT
 #define NE555_CALIBRATION_DURATION_MS 3000  // 3 second baseline capture
 #define NE555_SAMPLE_WINDOW_MS 100          // 100 ms per frequency sample
 #define NE555_DETECTION_THRESHOLD_PCT 15    // ±15% deviation triggers detection
@@ -166,12 +166,17 @@ The rover emits metal detector data in real-time telemetry:
    - Place rover on bench away from metal objects
    - Keep away from ferrous tools, steel parts, etc.
 
-2. **Power on and start mission**
+2. **Wire the module**
+   - `VCC` on the NE555 board to a stable 5V supply if the module expects 5V
+   - `GND` to ESP32 GND and battery supply ground
+   - `OUT` to ESP32 GPIO 39 through a 3.3V-safe level shift
+
+3. **Power on and start mission**
    - Firmware automatically runs 3-second calibration during `setup()`
    - Watch Serial monitor for confirmation: "Metal detector calibrated. Baseline: 65241.5 Hz"
    - Dashboard shows baseline frequency when connected
 
-3. **Test detection**
+4. **Test detection**
    - After calibration, bring a metal object near the coil
    - Frequency should drop (typically 20-50% for ferrous metals)
    - Dashboard should show red alert and "DETECTED" status

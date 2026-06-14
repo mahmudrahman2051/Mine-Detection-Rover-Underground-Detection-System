@@ -405,6 +405,12 @@ void loop() {
 
     readSerialCommands();
 
+    String loraLine;
+    while (lora.readMessage(loraLine)) {
+        loraLine.trim();
+        if (loraLine.length() > 0) handleCommandLine(loraLine);
+    }
+
     gps.feed();
     lastGps = gps.getData();
 

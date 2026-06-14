@@ -17,6 +17,8 @@ public:
     void poll();
     // non-blocking receive; returns length or 0
     int receivePacket(uint8_t* buf, size_t bufsize);
+    // fetch next received message captured by poll(); returns true if one is available
+    bool readMessage(String& out);
 
 private:
     int ss;
