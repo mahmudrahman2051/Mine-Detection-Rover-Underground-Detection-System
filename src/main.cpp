@@ -12,7 +12,7 @@
 #if USE_SD
 #include "sd_logger.h"
 #endif
-#include "metal_detector_ne555.h"
+#include "metal_detector_adc.h"
 
 // PWM channels for ESP32 LEDC
 #define CHAN_ML_A 0
@@ -33,7 +33,7 @@ Motor motorL(MOTOR_L_PWM_A, MOTOR_L_PWM_B, CHAN_ML_A, CHAN_ML_B);
 Motor motorR(MOTOR_R_PWM_A, MOTOR_R_PWM_B, CHAN_MR_A, CHAN_MR_B);
 #endif
 Drive drive(motorL, motorR);
-GPSModule gps(Serial2);
+GPSModule gps(Serial1);
 WaypointNavigator navigator(drive);
 #if USE_IMU
 IMUFusion imu;
@@ -43,7 +43,7 @@ LoRaModule lora(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
 #if USE_SD
 SdLogger sdLogger;
 #endif
-MetalDetectorNE555 metalDetector;
+MetalDetectorADC metalDetector;
 
 enum RoverMode {
     MODE_IDLE,
@@ -165,8 +165,10 @@ void sendTelemetryNow() {
 #endif
     // metal detector status
     payload += String(",\"metal_detected\":") + (metalDetector.isMetalDetected() ? "true" : "false");
-    payload += String(",\"metal_freq_hz\":") + String(metalDetector.getCurrentFrequency(), 1);
-    payload += String(",\"metal_freq_dev_pct\":") + String(metalDetector.getFrequencyDeviation(), 1);
+    payload += String(",\"metal_adc_current\":") + String(metalDetector.getCurrentValue());
+    payload += String(",\"metal_adc_baseline\":") + String(metalDetector.getBaselineValue());
+    payload += String(",\"metal_adc_drop\":") + String(metalDetector.getValueDrop());
+    payload += String(",\"metal_adc_threshold\":") + String(NE555_DETECTION_THRESHOLD);
     payload += String(",\"metal_confidence\":") + String(metalDetector.getConfidence());
     payload += "}";
     Serial.println(payload);
@@ -384,11 +386,11 @@ void setup() {
     if (lora.begin(433E6)) sendEvent("INFO", "LORA", "LoRa initialized");
     else sendEvent("WARN", "LORA", "LoRa init failed or not present");
 
-    // initialize metal detector NE555
+    // initialize metal detector ADC
     metalDetector.begin();
-    sendEvent("INFO", "METAL", "Starting metal detector calibration (3 sec, keep away from metal)...");
+    sendEvent("INFO", "METAL", "Starting metal detector calibration (2 sec, keep away from metal)...");
     if (metalDetector.calibrate()) {
-        sendEvent("INFO", "METAL", String("Metal detector calibrated. Baseline: ") + String(metalDetector.getBaselineFrequency(), 1) + " Hz");
+        sendEvent("INFO", "METAL", String("Metal detector calibrated. Baseline ADC: ") + String(metalDetector.getBaselineValue()));
     } else {
         sendEvent("WARN", "METAL", "Metal detector calibration failed");
     }
@@ -440,7 +442,11 @@ void loop() {
     bool metalNow = metalDetector.isMetalDetected();
     if (metalNow && !metalDetectedPrevious) {
         // Metal just detected!
-        sendEvent("WARN", "METAL", String("*** METAL DETECTED *** Freq dev: ") + String(metalDetector.getFrequencyDeviation(), 1) + "% Confidence: " + String(metalDetector.getConfidence()) + "%");
+        sendEvent("WARN", "METAL", String("*** METAL DETECTED *** ADC current: ") + String(metalDetector.getCurrentValue()) +
+                  String(" baseline: ") + String(metalDetector.getBaselineValue()) +
+                  String(" drop: ") + String(metalDetector.getValueDrop()) +
+                  String(" threshold: ") + String(NE555_DETECTION_THRESHOLD) +
+                  String(" Confidence: ") + String(metalDetector.getConfidence()) + "%");
         drive.stop(); // emergency stop
         currentMode = MODE_IDLE;
         missionActive = false;
@@ -448,7 +454,7 @@ void loop() {
         if (lastGps.valid) {
             String alert = String("{\"type\":\"alert\",\"alert_type\":\"metal_detected\",\"lat\":") + String(lastGps.latitude, 6)
                          + String(",\"lon\":") + String(lastGps.longitude, 6)
-                         + String(",\"freq_hz\":") + String(metalDetector.getCurrentFrequency(), 1)
+                         + String(",\"adc_drop\":") + String(metalDetector.getValueDrop())
                          + String(",\"confidence\":") + String(metalDetector.getConfidence())
                          + String("}");
             bool queued = lora.sendReliable(alert.c_str(), 4, 1500);

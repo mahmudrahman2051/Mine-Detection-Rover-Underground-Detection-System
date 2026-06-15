@@ -260,6 +260,12 @@ def control_button_row() -> None:
 def render_dashboard() -> None:
     telemetry: TelemetrySnapshot = st.session_state.telemetry
 
+    metal_adc_current = telemetry.metal_adc_current if telemetry.metal_adc_current is not None else telemetry.metal_raw
+    metal_adc_baseline = telemetry.metal_adc_baseline
+    metal_adc_drop = telemetry.metal_adc_drop
+    metal_confidence = telemetry.metal_confidence
+    metal_detected = bool(telemetry.metal_detected)
+
     st.subheader("Live Telemetry")
     metric_cols = st.columns(4)
     with metric_cols[0]:
@@ -273,16 +279,27 @@ def render_dashboard() -> None:
 
     metric_cols = st.columns(4)
     with metric_cols[0]:
-        render_metric_card("Metal Freq", f"{fmt_float(telemetry.metal_freq_hz, ' Hz')}", "NE555 frequency")
+        render_metric_card("Metal ADC", f"{fmt_float(metal_adc_current)}", "Current NE555 ADC reading")
     with metric_cols[1]:
-        freq_dev = telemetry.metal_freq_dev_pct or 0
-        dev_color = "🔴" if abs(freq_dev) > 15 else "🟡" if abs(freq_dev) > 5 else "🟢"
-        render_metric_card("Freq Deviation", f"{dev_color} {fmt_float(freq_dev, '%')}", "Frequency shift from baseline")
+        baseline_text = fmt_float(metal_adc_baseline)
+        render_metric_card("Metal Baseline", baseline_text, "Calibrated ADC baseline")
     with metric_cols[2]:
-        render_metric_card("Metal Confidence", f"{fmt_float(telemetry.metal_confidence, '%')}", "Detection confidence")
+        drop_text = fmt_float(metal_adc_drop)
+        drop_color = "🔴" if (metal_adc_drop or 0) >= 500 else "🟡" if (metal_adc_drop or 0) >= 250 else "🟢"
+        render_metric_card("ADC Drop", f"{drop_color} {drop_text}", "How far the signal fell from baseline")
     with metric_cols[3]:
-        metal_status = "🚨 DETECTED" if telemetry.metal_detected else "✓ Clear"
+        metal_status = "🚨 DETECTED" if metal_detected else "✓ Clear"
         render_metric_card("Metal Status", metal_status, "Metal detection status")
+
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
+        render_metric_card("Metal Confidence", f"{fmt_float(metal_confidence, '%')}", "Detection confidence")
+    with metric_cols[1]:
+        render_metric_card("Current Mode", telemetry.mode or "—", "Controller mode")
+    with metric_cols[2]:
+        render_metric_card("GPS Fix", "Locked" if telemetry.gps_lat is not None and telemetry.gps_lon is not None else "Searching", "GPS status")
+    with metric_cols[3]:
+        render_metric_card("Obstacle", f"{fmt_float(telemetry.distance_cm, ' cm')}", "Front ultrasonic range")
 
     metric_cols = st.columns(4)
     with metric_cols[0]:
@@ -292,7 +309,7 @@ def render_dashboard() -> None:
     with metric_cols[2]:
         render_metric_card("Gas / Smoke", f"{fmt_float(telemetry.gas_raw)}", "MQ-2 raw reading")
     with metric_cols[3]:
-        render_metric_card("Metal", f"{fmt_float(telemetry.metal_raw)}", f"Detected: {telemetry.metal_detected}")
+        render_metric_card("Metal Raw", f"{fmt_float(telemetry.metal_raw)}", f"Detected: {telemetry.metal_detected}")
 
     st.divider()
 
@@ -326,7 +343,10 @@ def render_dashboard() -> None:
         st.subheader("Current Snapshot")
         rows = telemetry.to_display_rows()
         if rows:
-            st.dataframe(pd.DataFrame(rows, columns=["Field", "Value"]), use_container_width=True, hide_index=True)
+            snapshot_df = pd.DataFrame(rows, columns=["Field", "Value"])
+            snapshot_df["Field"] = snapshot_df["Field"].astype(str)
+            snapshot_df["Value"] = snapshot_df["Value"].map(lambda value: "" if value is None else str(value))
+            st.dataframe(snapshot_df, use_container_width=True, hide_index=True)
         else:
             st.write("No telemetry yet.")
 

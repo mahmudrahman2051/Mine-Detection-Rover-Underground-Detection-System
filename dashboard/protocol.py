@@ -85,6 +85,9 @@ class TelemetrySnapshot:
     humidity_pct: Optional[float] = None
     gas_raw: Optional[float] = None
     metal_raw: Optional[float] = None
+    metal_adc_current: Optional[float] = None
+    metal_adc_baseline: Optional[float] = None
+    metal_adc_drop: Optional[float] = None
     metal_detected: Optional[bool] = None
     mag_cal_active: Optional[bool] = None
     mag_cal_progress: Optional[int] = None
@@ -118,6 +121,9 @@ class TelemetrySnapshot:
             "humidity_pct": self.humidity_pct,
             "gas_raw": self.gas_raw,
             "metal_raw": self.metal_raw,
+            "metal_adc_current": self.metal_adc_current,
+            "metal_adc_baseline": self.metal_adc_baseline,
+            "metal_adc_drop": self.metal_adc_drop,
             "metal_detected": self.metal_detected,
             "gps_lat": self.gps_lat,
             "gps_lon": self.gps_lon,
@@ -213,6 +219,9 @@ def snapshot_from_mapping(mapping: Dict[str, Any], source: str = "serial") -> Te
         humidity_pct=_as_float(lower, ["humidity_pct", "humidity", "hum"]),
         gas_raw=_as_float(lower, ["gas_raw", "mq2_raw", "smoke_raw", "gas"]),
         metal_raw=_as_float(lower, ["metal_raw", "metal", "metal_adc"]),
+        metal_adc_current=_as_float(lower, ["metal_adc_current", "metal_current", "metal_adc", "adc_value"]),
+        metal_adc_baseline=_as_float(lower, ["metal_adc_baseline", "metal_baseline", "adc_baseline"]),
+        metal_adc_drop=_as_float(lower, ["metal_adc_drop", "metal_drop", "adc_drop"]),
         metal_detected=_as_bool(lower, ["metal_detected", "metal_present", "mine_detected"]),
         gps_lat=_as_float(lower, ["gps_lat", "lat", "latitude"]),
         gps_lon=_as_float(lower, ["gps_lon", "lon", "longitude"]),

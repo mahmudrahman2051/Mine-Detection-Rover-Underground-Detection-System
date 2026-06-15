@@ -4,7 +4,7 @@
 #define ULTRASONIC_TRIG_PIN 33
 #define ULTRASONIC_ECHO_PIN 32
 
-#define DHT11_PIN 4
+#define DHT11_PIN 15
 #define DHT_TYPE DHT11
 
 #define BAUD_RATE 115200
@@ -29,10 +29,10 @@
 
 // Motor driver (BTS7960) pins - Phase 1
 // BTS7960 legacy pins (kept for reference)
-#define MOTOR_L_PWM_A 25
-#define MOTOR_L_PWM_B 26
-#define MOTOR_R_PWM_A 27
-#define MOTOR_R_PWM_B 14
+#define MOTOR_L_PWM_A 26
+#define MOTOR_L_PWM_B 27
+#define MOTOR_R_PWM_A 14
+#define MOTOR_R_PWM_B 12
 
 // L298N pin mapping (IN1/IN2 + EN(PWM))
 #define MOTOR_L_IN1_PIN 26
@@ -70,20 +70,22 @@
 #define LORA_RST_PIN 22 // RESET
 #define LORA_DIO0_PIN 21
 
-// GPS (NEO-6M) Serial2 pins
-#define GPS_RX_PIN 16 // ESP32 RX2 (connect to TX of GPS)
-#define GPS_TX_PIN 17 // ESP32 TX2 (connect to RX of GPS)
+// GPS (NEO-6M) Serial1 pins
+#define GPS_RX_PIN 13 // ESP32 RX1 (connect to TX of GPS)
+#define GPS_TX_PIN 25 // ESP32 TX1 (connect to RX of GPS)
 
 // Metal detector module - NE555 frequency-based (old single-pin setup, kept for compatibility)
 #define METAL_DETECTOR_PIN_OLD 34 // legacy single-pin detection
 
-// NE555 Metal Detector - Frequency-based system
-// Reassigned to free pin after removing rear ultrasonic
-#define NE555_OUTPUT_PIN 39 // NE555 square wave output to this GPIO (interrupt-capable)
-#define NE555_CALIBRATION_DURATION_MS 3000 // 3 seconds baseline calibration
-#define NE555_SAMPLE_WINDOW_MS 100 // 100 ms frequency sample window
-#define NE555_DETECTION_THRESHOLD_PCT 15 // ±15% frequency deviation triggers detection
-#define NE555_SAMPLE_HISTORY_SIZE 10 // rolling average over 10 samples
+// NE555 Metal Detector - ADC-based system
+// Reads analog voltage shift from NE555 output
+#define NE555_OUTPUT_PIN 35 // NE555 signal to ADC pin (analog read)
+#define NE555_CALIBRATION_DURATION_MS 2000 // 2 seconds baseline calibration
+#define NE555_SAMPLE_WINDOW_MS 20 // faster ADC sample window for quicker detection
+#define NE555_DETECTION_THRESHOLD 420 // ADC value drop threshold (lower = earlier detection)
+#define NE555_DETECTION_HYSTERESIS_MS 120 // keep detection stable without delaying the first trigger
+#define NE555_DETECTION_THRESHOLD_PCT 15 // legacy frequency-based detector threshold kept for build compatibility
+#define NE555_SAMPLE_HISTORY_SIZE 4 // small rolling history for confidence smoothing
 
 // MQ-2 smoke/gas sensor analog pin
 #define MQ2_PIN 34
